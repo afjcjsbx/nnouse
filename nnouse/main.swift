@@ -1,11 +1,10 @@
-//
-//  main.swift
-//  nnouse
-//
-//  Created by mauro.trulli on 16/06/26.
-//
+import AppKit
 
-import Foundation
+let app = NSApplication.shared
+app.setActivationPolicy(.accessory)
 
-print("Hello, World!")
+let controller = AppController()
 
+withExtendedLifetime(controller) {
+    app.run()
+}

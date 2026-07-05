@@ -55,10 +55,9 @@ final class AppController: NSObject {
     }
 
     private func showOverlay() {
-        // Rebuild only if the number of screens has changed
-        if overlayWindows.count != NSScreen.screens.count {
-            buildOverlays()
-        }
+        // Recreate overlay windows each time so macOS associates them with the
+        // currently active Space instead of reusing stale window-space bindings.
+        buildOverlays()
         overlayWindows.forEach { $0.reset(); $0.orderFrontRegardless() }
         isOverlayVisible = true
     }

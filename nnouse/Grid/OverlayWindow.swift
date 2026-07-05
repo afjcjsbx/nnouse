@@ -22,7 +22,7 @@ final class OverlayWindow: NSWindow {
         isOpaque = false
         backgroundColor = .clear
         level = .screenSaver
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary, .transient, .ignoresCycle]
         ignoresMouseEvents = true
         setFrame(screen.frame, display: false)
 

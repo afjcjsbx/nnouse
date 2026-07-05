@@ -24,13 +24,11 @@ enum ShortcutRecordingState {
     }
 }
 
-// Field that displays the current shortcut and records a new one on click
-final class ShortcutField: NSControl {
+final class ShortcutField: NSButton {
 
     private(set) var keyCode: Int64
     private(set) var modifiers: CGEventFlags
 
-    private let label = NSTextField(labelWithString: "")
     private var isRecording = false
     private var recordingEventTap: CFMachPort?
     private var recordingEventTapSource: CFRunLoopSource?
@@ -49,35 +47,29 @@ final class ShortcutField: NSControl {
     required init?(coder: NSCoder) { fatalError() }
 
     private func setup() {
-        wantsLayer = true
-        layer?.cornerRadius = 4
-        layer?.borderWidth = 1
+        setButtonType(.momentaryPushIn)
+        isBordered = true
+        bezelStyle = .rounded
+        focusRingType = .default
+        font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        alignment = .center
+        imagePosition = .noImage
+        target = self
+        action = #selector(handlePress)
         setNormalAppearance()
-
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.alignment = .center
-        addSubview(label)
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-        ])
     }
 
     private func setNormalAppearance() {
-        layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        layer?.borderColor = NSColor.separatorColor.cgColor
-        label.textColor = .labelColor
+        contentTintColor = .labelColor
     }
 
     private func setRecordingAppearance() {
-        layer?.backgroundColor = NSColor.selectedControlColor.cgColor
-        layer?.borderColor = NSColor.controlAccentColor.cgColor
-        label.textColor = .controlAccentColor
+        contentTintColor = .controlAccentColor
     }
 
     private func updateLabel() {
-        label.stringValue = isRecording
-            ? "Press shortcut…"
+        title = isRecording
+            ? "Press shortcut..."
             : ShortcutField.displayString(keyCode: keyCode, modifiers: modifiers)
     }
 
@@ -87,17 +79,11 @@ final class ShortcutField: NSControl {
         updateLabel()
     }
 
-    // MARK: - Mouse / Focus
-
     override var acceptsFirstResponder: Bool { true }
-    
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        bounds.contains(point) ? self : nil
-    }
-
-    override func mouseDown(with event: NSEvent) {
+    @objc private func handlePress() {
         if isRecording {
             stopRecording(save: false)
         } else {
@@ -123,16 +109,15 @@ final class ShortcutField: NSControl {
         if !save { window?.makeFirstResponder(nil) }
     }
 
-    // MARK: - Key capture
-
     override func keyDown(with event: NSEvent) {
-        guard isRecording else { super.keyDown(with: event); return }
+        guard isRecording else {
+            super.keyDown(with: event)
+            return
+        }
 
-        // Ignore modifier-only keys
         let code = Int64(event.keyCode)
         guard !Self.isModifierOnlyKey(code) else { return }
 
-        // Esc without modifiers = cancel
         if code == 53 && event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
             stopRecording(save: false)
             return
@@ -226,8 +211,6 @@ final class ShortcutField: NSControl {
         }
         return nil
     }
-
-    // MARK: - Display
 
     static func displayString(keyCode: Int64, modifiers: CGEventFlags) -> String {
         var parts = ""

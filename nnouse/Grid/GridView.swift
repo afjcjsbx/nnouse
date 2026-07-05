@@ -68,21 +68,7 @@ final class GridView: NSView {
     }
 
     private func drawSubGrid(in cellRect: NSRect) {
-        let (subCols, _) = subGridDimensions(cellW: cellRect.width, cellH: cellRect.height)
-        let subRows = Int(ceil(Double(Config.subCharset.count) / Double(subCols)))
-        let subCellW = cellRect.width / CGFloat(subCols)
-        let subCellH = cellRect.height / CGFloat(subRows)
-
-        for (i, ch) in Config.subCharset.enumerated() {
-            let col = i % subCols
-            let row = i / subCols
-            let subRect = NSRect(
-                x: cellRect.minX + CGFloat(col) * subCellW,
-                y: cellRect.maxY - CGFloat(row + 1) * subCellH,
-                width: subCellW,
-                height: subCellH
-            )
-
+        for (ch, subRect) in subGridRects(in: cellRect) {
             if subCellChar == ch {
                 NSColor(red: 1.0, green: 0.95, blue: 0.3, alpha: 0.7).setFill()
                 subRect.fill()
@@ -93,7 +79,7 @@ final class GridView: NSView {
             border.lineWidth = 0.5
             border.stroke()
 
-            let fontSize = min(subCellW, subCellH) * 0.42
+            let fontSize = min(subRect.width, subRect.height) * 0.42
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .semibold),
                 .foregroundColor: subCellChar == ch

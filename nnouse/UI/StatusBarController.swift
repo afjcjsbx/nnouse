@@ -1,11 +1,12 @@
 import AppKit
 
-final class StatusBarController {
+final class StatusBarController: NSObject, NSMenuDelegate {
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-    private var isEnabled = true
+    private let menu = NSMenu()
 
     init(appController: AppController) {
+        super.init()
         setupButton()
         setupMenu(appController: appController)
     }
@@ -20,10 +21,12 @@ final class StatusBarController {
             button.title = "⊹"
         }
         button.toolTip = "nnouse"
+        button.target = self
+        button.action = #selector(showMenu(_:))
     }
 
     private func setupMenu(appController: AppController) {
-        let menu = NSMenu()
+        menu.delegate = self
 
         let toggleItem = NSMenuItem(title: "Activate Grid", action: #selector(AppController.toggleOverlay), keyEquivalent: "")
         toggleItem.target = appController
@@ -39,11 +42,16 @@ final class StatusBarController {
 
         let quitItem = NSMenuItem(title: "Exit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
-
-        statusItem.menu = menu
     }
 
     @objc private func openSettings() {
-        SettingsWindowController.shared.showAndFocus()
+        menu.cancelTracking()
+        DispatchQueue.main.async {
+            SettingsWindowController.shared.showAndFocus()
+        }
+    }
+
+    @objc private func showMenu(_ sender: Any?) {
+        statusItem.popUpMenu(menu)
     }
 }

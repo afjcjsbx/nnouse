@@ -51,34 +51,48 @@ func gridIndex(for label: String, cols: Int, rows: Int) -> Int? {
 
 // MARK: - Sub-grid layout
 
-// Returns (cols, rows) that best approximate the cell's aspect ratio
-func subGridDimensions(cellW: CGFloat, cellH: CGFloat) -> (cols: Int, rows: Int) {
-    let n = Config.subCharset.count
-    let aspect = cellW / max(cellH, 1)
-    var bestCols = n
-    var bestRows = 1
-    for c in 1...n {
-        let r = Int(ceil(Double(n) / Double(c)))
-        let a = CGFloat(c) / CGFloat(r)
-        if abs(a - aspect) < abs(CGFloat(bestCols) / CGFloat(bestRows) - aspect) {
-            bestCols = c
-            bestRows = r
-        }
-    }
-    return (bestCols, bestRows)
+// Returns (cols, rows) for the precision grid arranged in keyboard rows.
+func subGridDimensions(cellW _: CGFloat, cellH _: CGFloat) -> (cols: Int, rows: Int) {
+    let cols = Config.subGridRows.map(\.count).max() ?? 1
+    return (cols, Config.subGridRows.count)
 }
 
-// Normalized offset (0…1, 0…1) of the character within the sub-grid
-func subOffset(for ch: Character, subCols: Int) -> CGPoint? {
-    guard let idx = Config.subCharset.firstIndex(of: ch) else { return nil }
-    let i = Config.subCharset.distance(from: Config.subCharset.startIndex, to: idx)
-    let subRows = Int(ceil(Double(Config.subCharset.count) / Double(subCols)))
-    let col = i % subCols
-    let row = i / subCols
-    return CGPoint(
-        x: (CGFloat(col) + 0.5) / CGFloat(subCols),
-        y: (CGFloat(row) + 0.5) / CGFloat(subRows)
-    )
+// Normalized offset (0…1, 0…1) of the character within the full-cell keyboard row.
+func subOffset(for ch: Character, subCols _: Int) -> CGPoint? {
+    let totalRows = CGFloat(Config.subGridRows.count)
+
+    for (rowIndex, rowChars) in Config.subGridRows.enumerated() {
+        guard let colIndex = rowChars.firstIndex(of: ch) else { continue }
+        let column = rowChars.distance(from: rowChars.startIndex, to: colIndex)
+        return CGPoint(
+            x: (CGFloat(column) + 0.5) / CGFloat(rowChars.count),
+            y: (CGFloat(rowIndex) + 0.5) / totalRows
+        )
+    }
+
+    return nil
+}
+
+func subGridRects(in cellRect: NSRect) -> [(character: Character, rect: NSRect)] {
+    let keyHeight = cellRect.height / CGFloat(Config.subGridRows.count)
+    var result: [(character: Character, rect: NSRect)] = []
+
+    for (rowIndex, rowChars) in Config.subGridRows.enumerated() {
+        let keyWidth = cellRect.width / CGFloat(rowChars.count)
+        let rowY = cellRect.maxY - CGFloat(rowIndex + 1) * keyHeight
+
+        for (column, ch) in rowChars.enumerated() {
+            let rect = NSRect(
+                x: cellRect.minX + CGFloat(column) * keyWidth,
+                y: rowY,
+                width: keyWidth,
+                height: keyHeight
+            )
+            result.append((character: ch, rect: rect))
+        }
+    }
+
+    return result
 }
 
 // MARK: - Coordinate conversion

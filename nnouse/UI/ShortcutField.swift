@@ -1,6 +1,29 @@
 import AppKit
 import CoreGraphics
 
+enum ShortcutRecordingState {
+    private static let lock = NSLock()
+    private static var value = false
+    static let didChangeNotification = Notification.Name("nnouse.shortcutRecordingDidChange")
+
+    static var isRecording: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    static func set(_ newValue: Bool) {
+        lock.lock()
+        let didChange = value != newValue
+        value = newValue
+        lock.unlock()
+
+        if didChange {
+            NotificationCenter.default.post(name: didChangeNotification, object: nil)
+        }
+    }
+}
+
 // Field that displays the current shortcut and records a new one on click
 final class ShortcutField: NSControl {
 
@@ -9,8 +32,11 @@ final class ShortcutField: NSControl {
 
     private let label = NSTextField(labelWithString: "")
     private var isRecording = false
+    private var recordingEventTap: CFMachPort?
+    private var recordingEventTapSource: CFRunLoopSource?
 
     var onChange: ((Int64, CGEventFlags) -> Void)?
+    var isRecordingShortcut: Bool { isRecording }
 
     init(keyCode: Int64, modifiers: CGEventFlags) {
         self.keyCode = keyCode
@@ -55,9 +81,21 @@ final class ShortcutField: NSControl {
             : ShortcutField.displayString(keyCode: keyCode, modifiers: modifiers)
     }
 
+    func setShortcut(keyCode: Int64, modifiers: CGEventFlags) {
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+        updateLabel()
+    }
+
     // MARK: - Mouse / Focus
 
     override var acceptsFirstResponder: Bool { true }
+    
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(point) ? self : nil
+    }
 
     override func mouseDown(with event: NSEvent) {
         if isRecording {
@@ -69,13 +107,17 @@ final class ShortcutField: NSControl {
 
     private func startRecording() {
         isRecording = true
+        ShortcutRecordingState.set(true)
         setRecordingAppearance()
         updateLabel()
+        installRecordingEventTap()
         window?.makeFirstResponder(self)
     }
 
     private func stopRecording(save: Bool) {
+        removeRecordingEventTap()
         isRecording = false
+        ShortcutRecordingState.set(false)
         setNormalAppearance()
         updateLabel()
         if !save { window?.makeFirstResponder(nil) }
@@ -88,8 +130,7 @@ final class ShortcutField: NSControl {
 
         // Ignore modifier-only keys
         let code = Int64(event.keyCode)
-        let modifierOnlyCodes: Set<Int64> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
-        guard !modifierOnlyCodes.contains(code) else { return }
+        guard !Self.isModifierOnlyKey(code) else { return }
 
         // Esc without modifiers = cancel
         if code == 53 && event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty {
@@ -104,15 +145,86 @@ final class ShortcutField: NSControl {
         if nsFlags.contains(.control) { cgFlags.insert(.maskControl) }
         if nsFlags.contains(.shift)   { cgFlags.insert(.maskShift) }
 
-        keyCode = code
-        modifiers = cgFlags
-        onChange?(keyCode, modifiers)
-        stopRecording(save: true)
+        finishRecording(with: code, modifiers: cgFlags)
     }
 
     override func resignFirstResponder() -> Bool {
         if isRecording { stopRecording(save: false) }
         return super.resignFirstResponder()
+    }
+
+    private func installRecordingEventTap() {
+        guard recordingEventTap == nil else {
+            if let recordingEventTap {
+                CGEvent.tapEnable(tap: recordingEventTap, enable: true)
+            }
+            return
+        }
+
+        let mask = CGEventMask(1 << CGEventType.keyDown.rawValue | 1 << CGEventType.keyUp.rawValue)
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+
+        recordingEventTap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { _, type, event, userInfo in
+                guard let userInfo else { return Unmanaged.passRetained(event) }
+                let field = Unmanaged<ShortcutField>.fromOpaque(userInfo).takeUnretainedValue()
+                return field.handleRecordingEvent(event, type: type)
+            },
+            userInfo: selfPtr
+        )
+
+        guard let recordingEventTap else { return }
+
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, recordingEventTap, 0)
+        recordingEventTapSource = source
+        CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
+        CGEvent.tapEnable(tap: recordingEventTap, enable: true)
+    }
+
+    private func removeRecordingEventTap() {
+        if let source = recordingEventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
+            recordingEventTapSource = nil
+        }
+
+        if let recordingEventTap {
+            CFMachPortInvalidate(recordingEventTap)
+            self.recordingEventTap = nil
+        }
+    }
+
+    private func handleRecordingEvent(_ event: CGEvent, type: CGEventType) -> Unmanaged<CGEvent>? {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let recordingEventTap {
+                CGEvent.tapEnable(tap: recordingEventTap, enable: true)
+            }
+            return Unmanaged.passRetained(event)
+        }
+
+        guard isRecording else { return Unmanaged.passRetained(event) }
+        guard type == .keyDown else { return Unmanaged.passRetained(event) }
+
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        guard !Self.isModifierOnlyKey(keyCode) else { return Unmanaged.passRetained(event) }
+
+        let relevantMask = CGEventFlags([.maskAlternate, .maskCommand, .maskControl, .maskShift])
+        let activeModifiers = event.flags.intersection(relevantMask)
+
+        if keyCode == 53 && activeModifiers.isEmpty {
+            DispatchQueue.main.async { [weak self] in
+                self?.stopRecording(save: false)
+            }
+            return nil
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            self?.finishRecording(with: keyCode, modifiers: activeModifiers)
+        }
+        return nil
     }
 
     // MARK: - Display
@@ -142,5 +254,17 @@ final class ShortcutField: NSControl {
             let ch = KeyMap.char(for: keyCode)
             return ch.isEmpty ? "(\(keyCode))" : ch.uppercased()
         }
+    }
+
+    static func isModifierOnlyKey(_ keyCode: Int64) -> Bool {
+        let modifierOnlyCodes: Set<Int64> = [54, 55, 56, 57, 58, 59, 60, 61, 62, 63]
+        return modifierOnlyCodes.contains(keyCode)
+    }
+
+    private func finishRecording(with keyCode: Int64, modifiers: CGEventFlags) {
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+        onChange?(keyCode, modifiers)
+        stopRecording(save: true)
     }
 }

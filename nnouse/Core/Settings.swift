@@ -69,8 +69,8 @@ final class Settings {
     // keyCode of the activation key (default 49 = space)
     var activationKeyCode: Int64 {
         get {
-            let v = defaults.integer(forKey: Key.activationKeyCode.rawValue)
-            return v > 0 ? Int64(v) : 49
+            guard defaults.object(forKey: Key.activationKeyCode.rawValue) != nil else { return 49 }
+            return Int64(defaults.integer(forKey: Key.activationKeyCode.rawValue))
         }
         set { defaults.set(Int(newValue), forKey: Key.activationKeyCode.rawValue); notify() }
     }

@@ -12,6 +12,12 @@ enum Config {
     // Charset for the main grid labels (depends on the selected mode)
     static var charset: [Character] { Settings.shared.charsetMode.charset }
 
-    // Charset for the precision subgrid (letters + digits + non-shift symbols)
-    static let subCharset = Array("qwertyuiopasdfghjklzxcvbnm1234567890-=[];',.")
+    // Precision subgrid laid out like the physical keyboard rows.
+    static let subGridRows: [[Character]] = [
+        Array("1234567890-="),
+        Array("qwertyuiop[]"),
+        Array("asdfghjkl;'"),
+        Array("zxcvbnm,.")
+    ]
+    static let subCharset = subGridRows.flatMap { $0 }
 }

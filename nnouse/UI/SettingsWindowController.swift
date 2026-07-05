@@ -46,9 +46,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     func showAndFocus() {
         refreshFromSettings()
         NSApp.setActivationPolicy(.regular)
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
         showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+        window?.orderFrontRegardless()
+        window?.makeMain()
         window?.makeKeyAndOrderFront(nil)
+        window?.makeFirstResponder(window?.contentView)
     }
 
     // MARK: - Layout
@@ -409,13 +413,27 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             clickCount: 1,
             pressure: 1
         )
+        let mouseUpEvent = NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: windowHitPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 0
+        )
         if let clickEvent {
             window.sendEvent(clickEvent)
         }
+        if let mouseUpEvent {
+            window.sendEvent(mouseUpEvent)
+        }
 
         results.append(shortcutField.isRecordingShortcut ? "PASS: window event enters shortcut recording mode" : "FAIL: window event did not enter shortcut recording mode")
-        if !shortcutField.isRecordingShortcut, let clickEvent {
-            shortcutField.mouseDown(with: clickEvent)
+        if !shortcutField.isRecordingShortcut {
+            shortcutField.performClick(nil)
         }
 
         results.append(shortcutField.isRecordingShortcut ? "PASS: shortcut field enters recording mode" : "FAIL: shortcut field did not enter recording mode")

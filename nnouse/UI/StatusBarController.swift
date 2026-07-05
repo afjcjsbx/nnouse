@@ -21,8 +21,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             button.title = "⊹"
         }
         button.toolTip = "nnouse"
-        button.target = self
-        button.action = #selector(showMenu(_:))
     }
 
     private func setupMenu(appController: AppController) {
@@ -42,16 +40,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         let quitItem = NSMenuItem(title: "Exit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
+
+        statusItem.menu = menu
     }
 
     @objc private func openSettings() {
-        menu.cancelTracking()
-        DispatchQueue.main.async {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             SettingsWindowController.shared.showAndFocus()
         }
-    }
-
-    @objc private func showMenu(_ sender: Any?) {
-        statusItem.popUpMenu(menu)
     }
 }

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build macOS app
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode environment
+        run: |
+          xcode-select -p
+          xcodebuild -version
+
+      - name: Build Debug app
+        run: |
+          xcodebuild \
+            -project nnouse.xcodeproj \
+            -scheme nnouse \
+            -configuration Debug \
+            -derivedDataPath .build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package Debug app artifact
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            .build/Build/Products/Debug/nnouse.app \
+            nnouse-debug.app.zip
+
+      - name: Upload Debug app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nnouse-debug-app
+          path: nnouse-debug.app.zip
+          if-no-files-found: error

@@ -14,8 +14,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private weak var gridOpacityValueLabel: NSTextField?
     private weak var highlightOpacitySlider: NSSlider?
     private weak var highlightOpacityValueLabel: NSTextField?
-    private weak var fpsField: NSTextField?
-    private weak var fpsStepper: NSStepper?
     private weak var charsetModePopup: NSPopUpButton?
     private var shortcutField: ShortcutField?
     var isRecordingShortcut: Bool { shortcutField?.isRecordingShortcut ?? false }
@@ -87,11 +85,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         highlightOpacitySlider = hlSlider
         highlightOpacityValueLabel = hlValue
 
-        let fpsField = intField(value: s.mouseFPS, tag: 3)
-        let fpsStepper = stepper(value: s.mouseFPS, min: 30, max: 240, tag: 3)
-        self.fpsField = fpsField
-        self.fpsStepper = fpsStepper
-
         let modePopup = InteractivePopUpButton()
         for mode in Settings.CharsetMode.allCases { modePopup.addItem(withTitle: mode.label) }
         modePopup.selectItem(at: s.charsetMode.rawValue)
@@ -117,7 +110,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         stack.addArrangedSubview(row(label: "Lines", control: pairStack(views: [rowField, rowStepper])))
         stack.addArrangedSubview(row(label: "Grid Opacity", control: opSlider, accessory: opValue))
         stack.addArrangedSubview(row(label: "Highlight Opacity", control: hlSlider, accessory: hlValue))
-        stack.addArrangedSubview(row(label: "Cursor Movement FPS", control: pairStack(views: [fpsField, fpsStepper])))
         stack.addArrangedSubview(row(label: "Cell Label Order", control: modePopup))
         stack.addArrangedSubview(row(label: "Activation Shortcut", control: sf))
 
@@ -139,7 +131,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             permissionLabel.centerYAnchor.constraint(equalTo: applyBtn.centerYAnchor),
         ])
 
-        [colField, colStepper, rowField, rowStepper, fpsField, fpsStepper].forEach {
+        [colField, colStepper, rowField, rowStepper].forEach {
             ($0 as? NSTextField)?.delegate = self
             ($0 as? NSStepper)?.target = self
             ($0 as? NSStepper)?.action = #selector(stepperChanged(_:))
@@ -264,7 +256,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let s = Settings.shared
         if let col = columnsField?.integerValue { s.columns = col }
         if let row = rowsField?.integerValue { s.rows = row }
-        if let fps = fpsField?.integerValue { s.mouseFPS = fps }
         if let slider = gridOpacitySlider {
             s.gridOpacity = CGFloat(slider.doubleValue)
         }
@@ -290,8 +281,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             return columnsField
         case 1:
             return rowsField
-        case 3:
-            return fpsField
         default:
             return nil
         }
@@ -309,8 +298,6 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         columnsStepper?.integerValue = s.columns
         rowsField?.integerValue = s.rows
         rowsStepper?.integerValue = s.rows
-        fpsField?.integerValue = s.mouseFPS
-        fpsStepper?.integerValue = s.mouseFPS
         gridOpacitySlider?.doubleValue = Double(s.gridOpacity)
         highlightOpacitySlider?.doubleValue = Double(s.highlightOpacity)
         charsetModePopup?.selectItem(at: s.charsetMode.rawValue)
@@ -484,8 +471,6 @@ extension SettingsWindowController: NSTextFieldDelegate {
             return columnsStepper
         case 1:
             return rowsStepper
-        case 3:
-            return fpsStepper
         default:
             return nil
         }

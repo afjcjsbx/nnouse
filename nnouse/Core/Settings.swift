@@ -37,7 +37,7 @@ final class Settings {
     }
 
     private enum Key: String {
-        case columns, rows, gridOpacity, highlightOpacity, activationKeyCode, activationModifiers, mouseFPS, charsetMode
+        case columns, rows, gridOpacity, highlightOpacity, activationKeyCode, activationModifiers, charsetMode
     }
 
     var columns: Int {
@@ -82,12 +82,6 @@ final class Settings {
             return v.map { CGEventFlags(rawValue: $0) } ?? .maskAlternate
         }
         set { defaults.set(newValue.rawValue, forKey: Key.activationModifiers.rawValue); notify() }
-    }
-
-    // FPS for cursor movement using the arrow keys (default 120)
-    var mouseFPS: Int {
-        get { let v = defaults.integer(forKey: Key.mouseFPS.rawValue); return v > 0 ? v : 120 }
-        set { defaults.set(newValue, forKey: Key.mouseFPS.rawValue); notify() }
     }
 
     var charsetMode: CharsetMode {

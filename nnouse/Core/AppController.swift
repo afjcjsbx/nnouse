@@ -72,7 +72,6 @@ final class AppController: NSObject {
     }
 
     @objc private func settingsDidChange() {
-        MouseMover.shared.updateFPS(Config.mouseFPS)
         updateActivationHotKey()
         ensureEventTap()
         // Render the windows with the new settings; if they were visible, bring them back up
@@ -251,25 +250,11 @@ final class AppController: NSObject {
         let flags = event.flags
         let relevantMask = CGEventFlags([.maskAlternate, .maskCommand, .maskControl, .maskShift])
         let activeModifiers = flags.intersection(relevantMask)
-        let onlyCommand = activeModifiers == .maskCommand
-        let arrowKeys: Set<Int64> = [123, 124, 125, 126]
 
         // While recording the activation shortcut, capture the raw combo from the event tap
         // through a dedicated temporary event tap owned by the shortcut field.
         if ShortcutRecordingState.isRecording {
             return Unmanaged.passRetained(event)
-        }
-
-        // ⌘ + arrow keys → continuous cursor movement
-        if arrowKeys.contains(keyCode) {
-            if onlyCommand {
-                DispatchQueue.main.async {
-                    type == .keyDown ? MouseMover.shared.keyDown(keyCode) : MouseMover.shared.keyUp(keyCode)
-                }
-                return nil
-            } else if type == .keyUp {
-                DispatchQueue.main.async { MouseMover.shared.keyUp(keyCode) }
-            }
         }
 
         let activationMods = Config.activationModifiers.intersection(relevantMask)
